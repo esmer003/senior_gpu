@@ -82,8 +82,6 @@ int main()
 
             gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
                 d_x + i,
-                d_x + i,
-                d_x + i,
                 d_y + i,
                 d_grad_a,
                 d_grad_b,
