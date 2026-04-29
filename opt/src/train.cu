@@ -7,6 +7,8 @@
 #include "reduction.h"
 #include "adamw.h"
 
+__global__ void reduce_sum(float *input, float *partial, int n);
+
 int main()
 {
     int n = N;
