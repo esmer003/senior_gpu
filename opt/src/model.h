@@ -1,30 +1,21 @@
-void gradient_descent(
-    //ex:arrays of different hours studied for test scores
-     //input array of x values on (GPU MEMORY),kenrnel will read from this array
-    const float * X,
-    //
-    const float * X2, 
-    //
-    const float * X3,
-    //ex:arrays of different test scores for the hours studied
-    //target array of y values on (GPU MEMORY)
-    const float * Y,
-    //array to store the gradient error values for w at index i
+#ifndef MODEL_H
+#define MODEL_H
+
+// If this is a CUDA kernel, it MUST have __global__
+__global__ void gradient_descent(
+    const float *X,
+    const float *X2, 
+    const float *X3,
+    const float *Y,
     float *grad_a,
     float *grad_b,
     float *grad_c, 
-    //array to store the gradient error values for b at index i
     float *grad_bias,
-    //current model weight
-    //current multiplier 
-    //maybe each hour is worth 5 points, so w = 5
     float a,
     float b,
     float c, 
-     //current model bias
-     //starting point
-     //maybe even if you study 0 hrs you still get 20 poitns, so b = 20
     float bias,
-    //number of data points x,y pairs
     int n 
-)
+); 
+
+#endif

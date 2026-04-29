@@ -7,7 +7,13 @@
 #include "reduction.h"
 #include "adamw.h"
 
-__global__ void reduce_sum(float *input, float *partial, int n);
+#define CUDA_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"GPU Error: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 
 int main()
 {
@@ -75,6 +81,8 @@ int main()
             }
 
             gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_x + i,
+                d_x + i,
                 d_x + i,
                 d_y + i,
                 d_grad_a,

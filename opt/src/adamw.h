@@ -1,5 +1,7 @@
-void adam_update_kernel
-(
+#ifndef ADAMW_H
+#define ADAMW_H
+
+void adam_update_kernel(
     float *grad,
     float *params,
     float *m,
@@ -11,4 +13,6 @@ void adam_update_kernel
     float eps,
     int timestep,
     int n
-);
+); 
+
+#endif
