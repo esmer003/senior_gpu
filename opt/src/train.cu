@@ -54,6 +54,11 @@ int main()
     CUDA_CHECK(cudaMalloc(&d_grad_c, bytes));
     CUDA_CHECK(cudaMalloc(&d_grad_d, bytes));
 
+    for (int i=0; i<n; i++){
+        h_x[i] = (float)i / n;
+        h_y[i] = 2.0f * h_x[i] + 1.0f;
+    }
+
     // TODO: make sure h_x and h_y are filled before copying.
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y, h_y, bytes, cudaMemcpyHostToDevice));
