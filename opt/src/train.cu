@@ -55,9 +55,8 @@ int main()
     CUDA_CHECK(cudaMalloc(&d_grad_c, bytes));
     CUDA_CHECK(cudaMalloc(&d_grad_d, bytes));
 
-    generate_data(h_x, h_y, n);
+    data_gen(h_x, h_y, n);
 
-    // TODO: make sure h_x and h_y are filled before copying.
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y, h_y, bytes, cudaMemcpyHostToDevice));
 
@@ -71,7 +70,8 @@ int main()
     float m_c = 0.0f, v_c = 0.0f;
     float m_d = 0.0f, v_d = 0.0f;
 
-    printf("Training: N=%d epochs=%d lr=%.4f\n\n", N, EPOCHS, LEARNING_RATE);
+    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d lr=%.4f\n\n",
+           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, LEARNING_RATE);
 
     for (int epoch = 0; epoch < EPOCHS; epoch++)
     {
@@ -117,29 +117,10 @@ int main()
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
             float grad_d = h_partial[0] / current_batch;
 
-            m_a = beta1 * m_a + (1.0f - beta1) * grad_a;
-            v_a = beta2 * v_a + (1.0f - beta2) * grad_a * grad_a;
-            float m_a_hat = m_a / (1.0f - powf(beta1, timestep));
-            float v_a_hat = v_a / (1.0f - powf(beta2, timestep));
-            a -= LEARNING_RATE * (m_a_hat / (sqrtf(v_a_hat) + eps) + weight_decay * a);
-
-            m_b = beta1 * m_b + (1.0f - beta1) * grad_b;
-            v_b = beta2 * v_b + (1.0f - beta2) * grad_b * grad_b;
-            float m_b_hat = m_b / (1.0f - powf(beta1, timestep));
-            float v_b_hat = v_b / (1.0f - powf(beta2, timestep));
-            b -= LEARNING_RATE * (m_b_hat / (sqrtf(v_b_hat) + eps) + weight_decay * b);
-
-            m_c = beta1 * m_c + (1.0f - beta1) * grad_c;
-            v_c = beta2 * v_c + (1.0f - beta2) * grad_c * grad_c;
-            float m_c_hat = m_c / (1.0f - powf(beta1, timestep));
-            float v_c_hat = v_c / (1.0f - powf(beta2, timestep));
-            c -= LEARNING_RATE * (m_c_hat / (sqrtf(v_c_hat) + eps) + weight_decay * c);
-
-            m_d = beta1 * m_d + (1.0f - beta1) * grad_d;
-            v_d = beta2 * v_d + (1.0f - beta2) * grad_d * grad_d;
-            float m_d_hat = m_d / (1.0f - powf(beta1, timestep));
-            float v_d_hat = v_d / (1.0f - powf(beta2, timestep));
-            d -= LEARNING_RATE * (m_d_hat / (sqrtf(v_d_hat) + eps) + weight_decay * d);
+            adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
         }
 
         if (epoch % 50 == 0 || epoch == EPOCHS - 1)
@@ -150,6 +131,12 @@ int main()
 
     printf("\n---- Results ----\n");
     printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
+    printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n", TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
+    printf("Error:   a=%.6f b=%.6f c=%.6f d=%.6f\n",
+           fabsf(a - TRUE_A),
+           fabsf(b - TRUE_B),
+           fabsf(c - TRUE_C),
+           fabsf(d - TRUE_BIAS));
 
     free(h_x);
     free(h_y);
