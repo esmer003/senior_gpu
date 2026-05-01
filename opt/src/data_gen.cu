@@ -4,7 +4,7 @@ void data_gen(float *h_x, float *h_y, int n)
 {
     for (int i = 0; i < n; i++)
     {
-        h_x[i] = -1.0f + 2.0f * ((float)i / (n - 1));
+        h_x[i] = h_x[i] = (float)i / n;
 
         h_y[i] = TRUE_A * h_x[i] * h_x[i] * h_x[i]
                + TRUE_B * h_x[i] * h_x[i]
