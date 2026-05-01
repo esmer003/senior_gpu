@@ -1,9 +1,9 @@
 #ifndef ADAMW_H
 #define ADAMW_H
 
-void adam_update_kernel(
-    float *grad,
+void adamw_update(
     float *params,
+    float grad,
     float *m,
     float *v,
     float beta1,
@@ -11,8 +11,7 @@ void adam_update_kernel(
     float weight_decay,
     float lr,
     float eps,
-    int timestep,
-    int n
-); 
+    int timestep
+);
 
 #endif

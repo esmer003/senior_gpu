@@ -117,10 +117,10 @@ int main()
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
             float grad_d = h_partial[0] / current_batch;
 
-            adam_update_kernel(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adam_update_kernel(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adam_update_kernel(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adam_update_kernel(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
         }
 
         if (epoch % 50 == 0 || epoch == EPOCHS - 1)
