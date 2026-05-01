@@ -1,6 +1,6 @@
 #include "data_gen.h"
 
-void generate_data(float *h_x, float *h_y, int n)
+void data_gen(float *h_x, float *h_y, int n)
 {
     for (int i = 0; i < n; i++)
     {
