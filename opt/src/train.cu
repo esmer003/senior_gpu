@@ -3,6 +3,7 @@
 #include <math.h>
 #include <cuda_runtime.h>
 
+#include "data_gen.h"
 #include "model.h"
 #include "reduction.h"
 #include "adamw.h"
@@ -54,10 +55,7 @@ int main()
     CUDA_CHECK(cudaMalloc(&d_grad_c, bytes));
     CUDA_CHECK(cudaMalloc(&d_grad_d, bytes));
 
-    for (int i=0; i<n; i++){
-        h_x[i] = (float)i / n;
-        h_y[i] = 2.0f * h_x[i] + 1.0f;
-    }
+    generate_data(h_x, h_y, n);
 
     // TODO: make sure h_x and h_y are filled before copying.
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
