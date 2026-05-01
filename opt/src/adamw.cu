@@ -9,15 +9,12 @@ y hat = w * x + b
 
 
 */
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
-#include <cuda_runtime.h>
+#include "adamw.h"
 
-__global__ void adam_update
-(
-    float *grad,
+void adamw_update(
     float *params,
+    float grad,
     float *m,
     float *v,
     float beta1,
@@ -25,16 +22,14 @@ __global__ void adam_update
     float weight_decay,
     float lr,
     float eps,
-    int timestep,
-    int n
-) 
+    int timestep
+)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if(i >= n) return;
+    *m = beta1 * (*m) + (1.0f - beta1) * grad;
+    *v = beta2 * (*v) + (1.0f - beta2) * grad * grad;
 
-    m[i] = beta1 * m[i] + (1.0f - beta1) * grad[i];
-    v[i] = beta2 * v[i] + (1.0f - beta2) * (grad[i] * grad[i]);
-    float m_param_hat = m[i] / (1.0f - powf(beta1, (float)timestep));
-    float v_param_hat = v[i] / (1.0f - powf(beta2, (float)timestep));
-    params[i] -= lr * (m_param_hat / (sqrtf(v_param_hat) + eps) + weight_decay * params[i]);
+    float m_hat = (*m) / (1.0f - powf(beta1, (float)timestep));
+    float v_hat = (*v) / (1.0f - powf(beta2, (float)timestep));
+
+    *params -= lr * (m_hat / (sqrtf(v_hat) + eps) + weight_decay * (*params));
 }
