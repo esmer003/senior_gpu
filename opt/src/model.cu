@@ -35,7 +35,7 @@ __global__ void gradient_descent(
     float error = y_hat - Y[i]; 
 
     // 6. Calculate Gradients (Partial derivatives of the loss function)
-    grad_a[i] = 2.0 f * error * x3;
+    grad_a[i] = 2.0f * error * x3;
     
     // 7. FIX: Removed [i] from x2. x2 is a local float (scalar), not a pointer.
     grad_b[i] = 2.0f * error * x2;
