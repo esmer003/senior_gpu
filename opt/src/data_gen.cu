@@ -1,14 +1,22 @@
 #include "data_gen.h"
+#include <stdlib.h>
 
-void data_gen(float *h_x, float *h_y, int n)
+void data_gen(float* h_x, float* h_y, int n)
 {
+    srand(42);
+
     for (int i = 0; i < n; i++)
     {
-        h_x[i] = -1.0f + 2.0f * ((float)i / (n - 1));
+        float x  = ((float)i / n) * 2.0f - 1.0f;
+        float x2 = x * x;
+        float x3 = x2 * x;
+        float noise = ((float)rand() / RAND_MAX - 0.5f) * 0.1f;
 
-        h_y[i] = TRUE_A * h_x[i] * h_x[i] * h_x[i]
-               + TRUE_B * h_x[i] * h_x[i]
-               + TRUE_C * h_x[i]
-               + TRUE_BIAS;
+        h_x[i] = x;
+        h_y[i] = TRUE_A * x3
+               + TRUE_B * x2
+               + TRUE_C * x
+               + TRUE_BIAS
+               + noise;
     }
 }
