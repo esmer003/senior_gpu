@@ -12,6 +12,27 @@
 #define TRUE_C 1.5f
 #define TRUE_D 2.0f
 
+void adamw_update(
+    float *params,
+    float grad,
+    float *m,
+    float *v,
+    float beta1,
+    float beta2,
+    float weight_decay,
+    float lr,
+    float eps,
+    int timestep
+)
+{
+    *m = beta1 * (*m) + (1.0f - beta1) * grad;
+    *v = beta2 * (*v) + (1.0f - beta2) * grad * grad;
+
+    float m_hat = (*m) / (1.0f - powf(beta1, (float)timestep));
+    float v_hat = (*v) / (1.0f - powf(beta2, (float)timestep));
+
+    *params -= lr * (m_hat / (sqrtf(v_hat) + eps) + weight_decay * (*params));
+}
 int main()
 {
     float x[N];
@@ -33,6 +54,17 @@ int main()
     float b = 0.0f;
     float c = 0.0f;
     float d = 0.0f;
+
+    float beta1 = 0.9f;
+    float beta2 = 0.999f;
+    float eps = 1e-8f;
+    float weight_decay = 0.01f;
+    int timestep = 0;
+
+    float m_a = 0.0f, v_a = 0.0f;
+    float m_b = 0.0f, v_b = 0.0f;
+    float m_c = 0.0f, v_c = 0.0f;
+    float m_d = 0.0f, v_d = 0.0f;
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -64,10 +96,12 @@ int main()
         grad_c /= N;
         grad_d /= N;
 
-        a -= LEARNING_RATE * grad_a;
-        b -= LEARNING_RATE * grad_b;
-        c -= LEARNING_RATE * grad_c;
-        d -= LEARNING_RATE * grad_d;
+        timestep++;
+
+        adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+        adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+        adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+        adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
     }
 
     auto stop = std::chrono::high_resolution_clock::now();
