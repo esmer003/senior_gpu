@@ -84,6 +84,11 @@ int main()
 
     printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d lr=%.4f\n\n",
            TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, LEARNING_RATE);
+    
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        cudaEventRecord(start);
 
     for (int epoch = 0; epoch < EPOCHS; epoch++)
     {
@@ -142,6 +147,13 @@ int main()
                 epoch, loss, a, b, c, d);
         }
     }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    printf("\nGPU Training Time: %.4f ms\n", milliseconds);
 
     printf("\n---- Results ----\n");
     printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
