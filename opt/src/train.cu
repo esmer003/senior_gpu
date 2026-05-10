@@ -8,25 +8,28 @@
 #include "reduction.h"
 #include "adamw.h"
 
-__global__ void reduce_sum(float *input, float *partial, int n);
-
 #define CUDA_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"GPU Error: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
+
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+    if (code != cudaSuccess)
+    {
+        fprintf(stderr, "GPU Error: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) exit(code);
+    }
 }
 
 float compute_loss_cpu(float *x, float *y, int n, float a, float b, float c, float d)
 {
     float loss = 0.0f;
-    
-    for (int i = 0; i < n; i++) {
+
+    for (int i = 0; i < n; i++)
+    {
         float pred = a * x[i] * x[i] * x[i] + b * x[i] * x[i] + c * x[i] + d;
         float err = pred - y[i];
         loss += err * err;
     }
+
     return loss / n;
 }
 
@@ -43,7 +46,6 @@ int main()
     float beta2 = 0.999f;
     float eps = 1e-8f;
     float weight_decay = 0.01f;
-    int timestep = 0;
 
     int num_blocks = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
@@ -72,97 +74,112 @@ int main()
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y, h_y, bytes, cudaMemcpyHostToDevice));
 
-    float a = 0.0f;
-    float b = 0.0f;
-    float c = 0.0f;
-    float d = 0.0f;
+    float learning_rates[] = {0.0005f, 0.001f, 0.002f, 0.005f};
+    int num_lrs = sizeof(learning_rates) / sizeof(learning_rates[0]);
 
-    float m_a = 0.0f, v_a = 0.0f;
-    float m_b = 0.0f, v_b = 0.0f;
-    float m_c = 0.0f, v_c = 0.0f;
-    float m_d = 0.0f, v_d = 0.0f;
+    float best_loss = 1e9f;
+    float best_lr = 0.0f;
 
-    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d lr=%.4f\n\n",
-           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, LEARNING_RATE);
-    
-        cudaEvent_t start, stop;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start);
+    printf("GPU Hyperparameter Search\n");
+    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d\n\n",
+           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS);
 
-    for (int epoch = 0; epoch < EPOCHS; epoch++)
+    for (int trial = 0; trial < num_lrs; trial++)
     {
-        for (int i = 0; i < n; i += points_per_batch)
-        {
-            timestep++;
+        float lr = learning_rates[trial];
 
-            int current_batch = points_per_batch;
-            if (i + current_batch > n)
+        float a = 0.0f;
+        float b = 0.0f;
+        float c = 0.0f;
+        float d = 0.0f;
+
+        float m_a = 0.0f, v_a = 0.0f;
+        float m_b = 0.0f, v_b = 0.0f;
+        float m_c = 0.0f, v_c = 0.0f;
+        float m_d = 0.0f, v_d = 0.0f;
+
+        int timestep = 0;
+
+        cudaEvent_t start, stop;
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+
+        CUDA_CHECK(cudaEventRecord(start));
+
+        for (int epoch = 0; epoch < EPOCHS; epoch++)
+        {
+            for (int i = 0; i < n; i += points_per_batch)
             {
-                current_batch = n - i;
+                timestep++;
+
+                int current_batch = points_per_batch;
+
+                if (i + current_batch > n)
+                {
+                    current_batch = n - i;
+                }
+
+                gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
+                    d_x + i,
+                    d_y + i,
+                    d_grad_a,
+                    d_grad_b,
+                    d_grad_c,
+                    d_grad_d,
+                    a,
+                    b,
+                    c,
+                    d,
+                    current_batch
+                );
+
+                CUDA_CHECK(cudaDeviceSynchronize());
+
+                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_a, d_partial, current_batch);
+                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+                float grad_a = h_partial[0] / current_batch;
+
+                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, current_batch);
+                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+                float grad_b = h_partial[0] / current_batch;
+
+                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, current_batch);
+                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+                float grad_c = h_partial[0] / current_batch;
+
+                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, current_batch);
+                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+                float grad_d = h_partial[0] / current_batch;
+
+                adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, lr, eps, timestep);
+                adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, lr, eps, timestep);
+                adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, lr, eps, timestep);
+                adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, lr, eps, timestep);
             }
-
-            gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
-                d_x + i,
-                d_y + i,
-                d_grad_a,
-                d_grad_b,
-                d_grad_c,
-                d_grad_d,
-                a,
-                b,
-                c,
-                d,
-                current_batch
-            );
-
-            CUDA_CHECK(cudaDeviceSynchronize());
-
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_a, d_partial, current_batch);
-            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-            float grad_a = h_partial[0] / current_batch;
-
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, current_batch);
-            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-            float grad_b = h_partial[0] / current_batch;
-
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, current_batch);
-            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-            float grad_c = h_partial[0] / current_batch;
-
-            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, current_batch);
-            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-            float grad_d = h_partial[0] / current_batch;
-
-            adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
         }
 
-        if (epoch % 50 == 0 || epoch == EPOCHS - 1)
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
+
+        float milliseconds = 0.0f;
+        CUDA_CHECK(cudaEventElapsedTime(&milliseconds, start, stop));
+
+        float final_loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
+
+        printf("LR=%.4f final_loss=%.6f time=%.4f ms learned a=%.5f b=%.5f c=%.5f d=%.5f\n",
+               lr, final_loss, milliseconds, a, b, c, d);
+
+        if (final_loss < best_loss)
         {
-            float loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
-            printf("[Epoch %4d] loss=%.6f a=%.5f b=%.5f c=%.5f d=%.5f\n", 
-                epoch, loss, a, b, c, d);
+            best_loss = final_loss;
+            best_lr = lr;
         }
+
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
 
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-
-    printf("\nGPU Training Time: %.4f ms\n", milliseconds);
-
-    printf("\n---- Results ----\n");
-    printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
-    printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n", TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
-    printf("Error:   a=%.6f b=%.6f c=%.6f d=%.6f\n",
-           fabsf(a - TRUE_A),
-           fabsf(b - TRUE_B),
-           fabsf(c - TRUE_C),
-           fabsf(d - TRUE_BIAS));
+    printf("\nBest GPU LR: %.4f with loss %.6f\n", best_lr, best_loss);
 
     free(h_x);
     free(h_y);
