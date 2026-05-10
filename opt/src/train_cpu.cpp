@@ -75,7 +75,7 @@ int main()
     auto duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
-    printf("CPU Training Time: %lld ms\n", duration.count());
+    printf("CPU Training Time: %ld ms\n", duration.count());
 
     printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n",
            a, b, c, d);
