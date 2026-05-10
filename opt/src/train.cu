@@ -138,7 +138,7 @@ int main()
         if (epoch % 50 == 0 || epoch == EPOCHS - 1)
         {
             float loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
-            printf("[Epoch %4d] loss=%.6f a=%.5f b=%.5f c=%.5f d=%.5\n", 
+            printf("[Epoch %4d] loss=%.6f a=%.5f b=%.5f c=%.5f d=%.5f\n", 
                 epoch, loss, a, b, c, d);
         }
     }
