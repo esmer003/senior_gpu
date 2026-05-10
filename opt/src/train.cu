@@ -18,6 +18,18 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
+float compute_loss_cpu(float *x, float *y, int n, float a, float b, float c, float d)
+{
+    float loss = 0.0f;
+    
+    for (int i = 0; i < n; i++) {
+        float pred = a * x[i] * x[i] * x[i] + b * x[i] * x[i] + c * x[i] + d;
+        float err = pred - y[i];
+        loss += err * err;
+    }
+    return loss / n;
+}
+
 int main()
 {
     int n = N;
@@ -125,7 +137,8 @@ int main()
 
         if (epoch % 50 == 0 || epoch == EPOCHS - 1)
         {
-            printf("[Epoch %3d] a=%.5f b=%.5f c=%.5f d=%.5f\n", epoch, a, b, c, d);
+            float loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
+            printf("[Epoch %4d] loss=%.6f a=%.5f" b=%.5f c=%.5f d=%.5\n", epoch, loss, a, b, c, d);
         }
     }
 
