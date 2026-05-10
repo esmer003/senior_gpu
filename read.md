@@ -1,4 +1,4 @@
-senior project code & books
+senior project
 ## CPU vs GPU Results
 
 The model was trained on synthetic cubic data:
