@@ -25,7 +25,11 @@ float compute_loss_cpu(float *x, float *y, int n, float a, float b, float c, flo
 
     for (int i = 0; i < n; i++)
     {
-        float pred = a * x[i] * x[i] * x[i] + b * x[i] * x[i] + c * x[i] + d;
+        float pred = a * x[i] * x[i] * x[i]
+                   + b * x[i] * x[i]
+                   + c * x[i]
+                   + d;
+
         float err = pred - y[i];
         loss += err * err;
     }
@@ -33,10 +37,17 @@ float compute_loss_cpu(float *x, float *y, int n, float a, float b, float c, flo
     return loss / n;
 }
 
-int main()
+int main(int argc, char **argv)
 {
     int n = N;
     size_t bytes = n * sizeof(float);
+
+    float lr = 0.002f;
+
+    if (argc > 1)
+    {
+        lr = atof(argv[1]);
+    }
 
     int batch_size = 256;
     int points_per_batch = batch_size;
@@ -74,124 +85,136 @@ int main()
     CUDA_CHECK(cudaMemcpy(d_x, h_x, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d_y, h_y, bytes, cudaMemcpyHostToDevice));
 
-    float learning_rates[] = {0.0005f, 0.001f, 0.002f, 0.005f};
-    int num_lrs = sizeof(learning_rates) / sizeof(learning_rates[0]);
+    float a = 0.0f;
+    float b = 0.0f;
+    float c = 0.0f;
+    float d = 0.0f;
 
-    float best_loss = 1e9f;
-    float best_lr = 0.0f;
+    float m_a = 0.0f, v_a = 0.0f;
+    float m_b = 0.0f, v_b = 0.0f;
+    float m_c = 0.0f, v_c = 0.0f;
+    float m_d = 0.0f, v_d = 0.0f;
 
-    printf("GPU Hyperparameter Search\n");
-    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d\n\n",
+    int timestep = 0;
+
+    printf("GPU Training Run\n");
+    printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d\n",
            TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS);
+    printf("Learning rate: %.8f\n\n", lr);
 
-    for (int trial = 0; trial < num_lrs; trial++)
+    cudaEvent_t start, stop;
+    CUDA_CHECK(cudaEventCreate(&start));
+    CUDA_CHECK(cudaEventCreate(&stop));
+
+    CUDA_CHECK(cudaEventRecord(start));
+
+    for (int epoch = 0; epoch < EPOCHS; epoch++)
     {
-        float lr = learning_rates[trial];
-
-        float a = 0.0f;
-        float b = 0.0f;
-        float c = 0.0f;
-        float d = 0.0f;
-
-        float m_a = 0.0f, v_a = 0.0f;
-        float m_b = 0.0f, v_b = 0.0f;
-        float m_c = 0.0f, v_c = 0.0f;
-        float m_d = 0.0f, v_d = 0.0f;
-
-        int timestep = 0;
-
-        cudaEvent_t start, stop;
-        CUDA_CHECK(cudaEventCreate(&start));
-        CUDA_CHECK(cudaEventCreate(&stop));
-
-        CUDA_CHECK(cudaEventRecord(start));
-
-        for (int epoch = 0; epoch < EPOCHS; epoch++)
+        for (int i = 0; i < n; i += points_per_batch)
         {
-            for (int i = 0; i < n; i += points_per_batch)
+            timestep++;
+
+            int current_batch = points_per_batch;
+
+            if (i + current_batch > n)
             {
-                timestep++;
-
-                int current_batch = points_per_batch;
-
-                if (i + current_batch > n)
-                {
-                    current_batch = n - i;
-                }
-
-                gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
-                    d_x + i,
-                    d_y + i,
-                    d_grad_a,
-                    d_grad_b,
-                    d_grad_c,
-                    d_grad_d,
-                    a,
-                    b,
-                    c,
-                    d,
-                    current_batch
-                );
-
-                CUDA_CHECK(cudaDeviceSynchronize());
-
-                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_a, d_partial, current_batch);
-                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-                float grad_a = h_partial[0] / current_batch;
-
-                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_b, d_partial, current_batch);
-                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-                float grad_b = h_partial[0] / current_batch;
-
-                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_c, d_partial, current_batch);
-                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-                float grad_c = h_partial[0] / current_batch;
-
-                reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(d_grad_d, d_partial, current_batch);
-                CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
-                float grad_d = h_partial[0] / current_batch;
-
-                adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, lr, eps, timestep);
-                adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, lr, eps, timestep);
-                adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, lr, eps, timestep);
-                adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, lr, eps, timestep);
+                current_batch = n - i;
             }
+
+            gradient_descent<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_x + i,
+                d_y + i,
+                d_grad_a,
+                d_grad_b,
+                d_grad_c,
+                d_grad_d,
+                a,
+                b,
+                c,
+                d,
+                current_batch
+            );
+
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_grad_a,
+                d_partial,
+                current_batch
+            );
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            float grad_a = h_partial[0] / current_batch;
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_grad_b,
+                d_partial,
+                current_batch
+            );
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            float grad_b = h_partial[0] / current_batch;
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_grad_c,
+                d_partial,
+                current_batch
+            );
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            float grad_c = h_partial[0] / current_batch;
+
+            reduce_sum<<<blocks_per_batch, BLOCK_SIZE>>>(
+                d_grad_d,
+                d_partial,
+                current_batch
+            );
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
+            float grad_d = h_partial[0] / current_batch;
+
+            adamw_update(&a, grad_a, &m_a, &v_a,
+                         beta1, beta2, weight_decay, lr, eps, timestep);
+
+            adamw_update(&b, grad_b, &m_b, &v_b,
+                         beta1, beta2, weight_decay, lr, eps, timestep);
+
+            adamw_update(&c, grad_c, &m_c, &v_c,
+                         beta1, beta2, weight_decay, lr, eps, timestep);
+
+            adamw_update(&d, grad_d, &m_d, &v_d,
+                         beta1, beta2, weight_decay, lr, eps, timestep);
         }
-
-        CUDA_CHECK(cudaEventRecord(stop));
-        CUDA_CHECK(cudaEventSynchronize(stop));
-
-        float milliseconds = 0.0f;
-        CUDA_CHECK(cudaEventElapsedTime(&milliseconds, start, stop));
-
-        float final_loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
-
-        printf("LR=%.4f final_loss=%.6f time=%.4f ms learned a=%.5f b=%.5f c=%.5f d=%.5f\n",
-               lr, final_loss, milliseconds, a, b, c, d);
-
-        if (final_loss < best_loss)
-        {
-            best_loss = final_loss;
-            best_lr = lr;
-        }
-
-        CUDA_CHECK(cudaEventDestroy(start));
-        CUDA_CHECK(cudaEventDestroy(stop));
     }
 
-    printf("\nBest GPU LR: %.4f with loss %.6f\n", best_lr, best_loss);
+    CUDA_CHECK(cudaEventRecord(stop));
+    CUDA_CHECK(cudaEventSynchronize(stop));
+
+    float milliseconds = 0.0f;
+    CUDA_CHECK(cudaEventElapsedTime(&milliseconds, start, stop));
+
+    float final_loss = compute_loss_cpu(h_x, h_y, n, a, b, c, d);
+
+    printf("FINAL_LOSS %.8f\n", final_loss);
+    printf("LR %.8f\n", lr);
+    printf("TIME_MS %.4f\n", milliseconds);
+    printf("PARAMS a=%.6f b=%.6f c=%.6f d=%.6f\n", a, b, c, d);
+
+    CUDA_CHECK(cudaEventDestroy(start));
+    CUDA_CHECK(cudaEventDestroy(stop));
 
     free(h_x);
     free(h_y);
     free(h_partial);
 
-    cudaFree(d_x);
-    cudaFree(d_y);
-    cudaFree(d_partial);
-    cudaFree(d_grad_a);
-    cudaFree(d_grad_b);
-    cudaFree(d_grad_c);
-    cudaFree(d_grad_d);
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_y));
+    CUDA_CHECK(cudaFree(d_partial));
+    CUDA_CHECK(cudaFree(d_grad_a));
+    CUDA_CHECK(cudaFree(d_grad_b));
+    CUDA_CHECK(cudaFree(d_grad_c));
+    CUDA_CHECK(cudaFree(d_grad_d));
 
     return 0;
 }
