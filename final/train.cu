@@ -9,8 +9,9 @@
 #include "cuda_check.h"
 #include "load_bin_data.h"
 
+const float ADAMW_LR = 0.0005f;
+
 // nvcc train.cu model.cu reduction.cu adamw.cpp data_gen.cpp load_bin_data.cpp -o train.exe
-const float LEARNING_RATE = 0.0005f;
 
 static float compute_mse_host(const float* x, const float* y, int n,
                               float a, float b, float c, float d)
@@ -86,7 +87,7 @@ int main()
     float d = 0.0f;
 
     printf("Training: Y = %.1fx^3 + %.1fx^2 + %.1fx + %.1f | N=%d epochs=%d lr=%.4f\n\n",
-           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, LEARNING_RATE);
+           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS, N, EPOCHS, ADAMW_LR);
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -136,13 +137,13 @@ int main()
             float grad_d = h_partial[0] / points_per_batch;
 
             adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay,
-                         LEARNING_RATE, eps, timestep);
+                         ADAMW_LR, eps, timestep);
             adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay,
-                         LEARNING_RATE, eps, timestep);
+                         ADAMW_LR, eps, timestep);
             adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay,
-                         LEARNING_RATE, eps, timestep);
+                         ADAMW_LR, eps, timestep);
             adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay,
-                         LEARNING_RATE, eps, timestep);
+                         ADAMW_LR, eps, timestep);
         }
 
         if (epoch % 50 == 0 || epoch == EPOCHS - 1) {
