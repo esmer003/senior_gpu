@@ -10,6 +10,17 @@
 #include "cuda_check.h"
 #include "load_bin_data.h"
 //nvcc train.cu model.cu reduction.cu adamw.cpp data_gen.cpp load_bin_data.cpp -o train.exe
+static float compute_mse_host(const float* x, const float* y, int n, float a, float b, float c, float d)
+{
+    float mse = 0.0f;
+    for (int i = 0; i < n; i++) {
+        float pred = a*x[i]*x[i]*x[i] + b*x[i]*x[i] + c*x[i] + d;
+        float diff = pred - y[i];
+        mse += diff * diff;
+    }
+    return mse / n;
+}
+
 int main()
 {
     int n=N;
@@ -105,6 +116,12 @@ int main()
     cudaEventCreate(&stop);
     cudaEventRecord(start);
 
+    FILE* synth_log = fopen("adamw_synth_log.txt", "w");
+    if (!synth_log) {
+        fprintf(stderr, "Failed to open adamw_synth_log.txt for writing.\n");
+        return 1;
+    }
+
     for(int epoch = 0; epoch<EPOCHS; epoch++)
     {
         for(int i=0; i<n; i+= points_per_batch)
@@ -150,12 +167,16 @@ int main()
             adamw_update(&d,grad_d,&m_d,&v_d,beta1,beta2,weight_decay,LEARNING_RATE,eps,timestep);
 
         }
+        float mse_epoch = compute_mse_host(h_x, h_y, n, a, b, c, d);
+        fprintf(synth_log, "%d %.8f\n", epoch, mse_epoch);
+
         //prints the current epoch and the values of w and b every 50 epochs and on the last epoch
         if(epoch % 50 == 0 || epoch == EPOCHS -1)
         {
             printf("[Epoch %3d] a=%.5f b=%.5f c=%.5f d=%.5f\n", epoch, a, b, c, d);
         }
     }
+    fclose(synth_log);
     cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         float ms = 0;
@@ -165,14 +186,7 @@ int main()
     printf("\n---- Results ----\n");
     printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
     printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n", TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
-    float mse = 0.0f;
-    for (int i = 0; i < n; i++) {
-        float x = h_x[i];
-        float pred = a*x*x*x + b*x*x + c*x + d;
-        float diff = pred - h_y[i];
-        mse += diff * diff;
-    }
-    mse /= n;
+    float mse = compute_mse_host(h_x, h_y, n, a, b, c, d);
     if (!use_real_data) {
     printf("Error:   a=%.6f b=%.6f c=%.6f d=%.6f\n",
         fabsf(a-TRUE_A), fabsf(b-TRUE_B),
