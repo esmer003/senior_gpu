@@ -1,0 +1,22 @@
+# Build outputs
+*.exe
+*.o
+*.out
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated data and artifacts
+data/
+artifacts/
+*.bin
+*.png
+*_log.txt
+
+# Local/editor files
+.vscode/
+.DS_Store
