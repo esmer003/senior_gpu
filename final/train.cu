@@ -10,6 +10,7 @@
 #include "load_bin_data.h"
 
 // nvcc train.cu model.cu reduction.cu adamw.cpp data_gen.cpp load_bin_data.cpp -o train.exe
+const float LEARNING_RATE = 0.0005f;
 
 static float compute_mse_host(const float* x, const float* y, int n,
                               float a, float b, float c, float d)
