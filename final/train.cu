@@ -134,14 +134,19 @@ int main()
             CUDA_CHECK(cudaMemcpy(h_partial, d_partial, sizeof(float), cudaMemcpyDeviceToHost));
             float grad_d = h_partial[0] / points_per_batch;
 
-            adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
-            adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay, LEARNING_RATE, eps, timestep);
+            adamw_update(&a, grad_a, &m_a, &v_a, beta1, beta2, weight_decay,
+                         LEARNING_RATE, eps, timestep);
+            adamw_update(&b, grad_b, &m_b, &v_b, beta1, beta2, weight_decay,
+                         LEARNING_RATE, eps, timestep);
+            adamw_update(&c, grad_c, &m_c, &v_c, beta1, beta2, weight_decay,
+                         LEARNING_RATE, eps, timestep);
+            adamw_update(&d, grad_d, &m_d, &v_d, beta1, beta2, weight_decay,
+                         LEARNING_RATE, eps, timestep);
         }
 
         if (epoch % 50 == 0 || epoch == EPOCHS - 1) {
-            printf("[Epoch %3d] a=%.5f b=%.5f c=%.5f d=%.5f\n", epoch, a, b, c, d);
+            printf("[Epoch %3d] a=%.5f b=%.5f c=%.5f d=%.5f\n",
+                   epoch, a, b, c, d);
         }
 
         if (synth_log) {
@@ -159,14 +164,17 @@ int main()
 
     printf("\n---- Results ----\n");
     printf("Learned: a=%.5f b=%.5f c=%.5f d=%.5f\n", a, b, c, d);
-    printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n", TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
+    printf("True:    a=%.5f b=%.5f c=%.5f d=%.5f\n",
+           TRUE_A, TRUE_B, TRUE_C, TRUE_BIAS);
 
     float mse = compute_mse_host(h_x, h_y, n, a, b, c, d);
 
     if (!use_real_data) {
         printf("Error:   a=%.6f b=%.6f c=%.6f d=%.6f\n",
-               fabsf(a - TRUE_A), fabsf(b - TRUE_B),
-               fabsf(c - TRUE_C), fabsf(d - TRUE_BIAS));
+               fabsf(a - TRUE_A),
+               fabsf(b - TRUE_B),
+               fabsf(c - TRUE_C),
+               fabsf(d - TRUE_BIAS));
     }
 
     if (use_real_data) {
