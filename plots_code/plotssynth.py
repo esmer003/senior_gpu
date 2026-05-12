@@ -8,8 +8,8 @@ FINAL = BASE.parent / "final"
 adamw_file = FINAL / "adamw_synth_log.txt"
 sgd_file = FINAL / "sgd_synth_log.txt"
 
-adamw = pd.read_csv(adamw_file)
-sgd = pd.read_csv(sgd_file)
+adamw = pd.read_csv(adamw_file, encoding="utf-16")
+sgd = pd.read_csv(sgd_file, encoding="utf-16")
 
 adamw = adamw[adamw["epoch"] <= 200]
 sgd = sgd[sgd["epoch"] <= 200]
